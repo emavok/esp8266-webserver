@@ -1,0 +1,25 @@
+<html>
+    <head>
+        <title>ESP8266</title>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    </head>
+    <body class="bg-dark">
+        <div class="container bg-secondary text-white mt-2 mb-2 p-4">
+            <h1 class="text-center">Willkommen auf Deinem ESP8266</h1>
+
+            <h3>Systeminformation</h3>
+            <ul>
+                <li>Hostname: %HOSTNAME%</li>
+                <li>IP: %IP%</li>
+                <li>Green LED state: %GREEN_LED_STATE%</li>
+                <li>Red LED state: %RED_LED_STATE%</li>
+            </ul>
+
+            <h3>LED Einstellungen</h3>
+            <form>
+                <button class="btn btn-danger" type="submit" formmethod="POST" formaction="/api/led/red">Toggle RED</button>
+                <button class="btn btn-success" type="submit" formmethod="POST" formaction="/api/led/green">Toggle GREEN</button>
+            </form>
+        </div>
+    </body>
+</html>
