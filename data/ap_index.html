@@ -1,0 +1,30 @@
+<html>
+    <head>
+        <title>ESP8266</title>
+    </head>
+    <body class="bg-dark">
+        <div class="container bg-secondary text-white mt-2 mb-2 p-4">
+            <h1 class="text-center">Willkommen auf Deinem ESP8266 Netwerk</h1>
+
+            <h3>Access Point information</h3>
+            <ul>
+                <li>Access Point IP: %IP%</li>
+            </ul>
+
+            <h3>Network connection</h3>
+            <form>
+                <div class="form-group">
+                  <label for="ssid">Your network SSID</label>
+                  <input type="text" class="form-control" id="ssid" aria-describedby="ssidHelp" placeholder="Enter your network SSID" value="%SSID%">
+                  <small id="ssidHelp" class="form-text text-muted">The ESP8266 will try to connect to this network on startup.</small>
+                </div>
+                <div class="form-group">
+                  <label for="password">Password</label>
+                  <input type="text" class="form-control" id="password" aria-describedby="passwordHelp" placeholder="Password" value="%PASSWORD%">
+                  <small id="passwordHelp" class="form-text text-muted">Target network password for authentication.</small>
+                </div>
+                <button class="btn btn-primary" type="submit" formmethod="POST" formaction="/api/ap">Submit</button>
+              </form>
+        </div>
+    </body>
+</html>
