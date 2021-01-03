@@ -66,15 +66,12 @@ int saveWlanConfig() {
         return 1;
     }
 
-    file.print("ssid=");
-    file.println(ssid);
-    file.print("password=");
-    file.println(password);
-    file.print("hostname=");
-    file.println(hostname);
-
+    String cfg = "ssid=" + ssid + "\npassword=" + password + "\nhostname=" + hostname + "\n";
+    const size_t bytesWritten = file.write(cfg.c_str());
     file.close();
     Serial.print("ok. ");
+    Serial.print(bytesWritten);
+    Serial.println(" Bytes written.");
     return 0;
 }
 
@@ -108,11 +105,6 @@ int readWlanConfig() {
     Serial.print(wlanConfigFileName);
     Serial.print("...");
 
-    ssid="MA48";
-    password="sooK2102";
-    hostname="myesp";
-    return 0;
-
     bool ssidOk = false;
     bool pwOk = false;
     bool hnOk = false;
@@ -129,7 +121,6 @@ int readWlanConfig() {
         Serial.println(line);
 
         // parse string
-        Serial.print("-> parsing...");
         char str[line.length()+1];
         strcpy(str, line.c_str());
         char *token = strtok(str, "=");
@@ -137,18 +128,15 @@ int readWlanConfig() {
         if (tok == "ssid") {
             ssid = strtok(NULL, "=");
             ssidOk = true;
-            Serial.println("ok");
         }
         else if (tok == "password") {
             password = strtok(NULL, "=");
             pwOk = true;
-            Serial.println("ok");
         } else if (tok == "hostname") {
             hostname = strtok(NULL, "=");
             hnOk = true;
-            Serial.println("ok");
         } else {
-            Serial.println("error. Unknown config parameter. Skipped.");
+            Serial.println("Unknown config parameter. Skipped.");
         }
     }
     // close file handle
@@ -341,6 +329,8 @@ void setupWebServer() {
     server.on("/reboot.html", HTTP_GET, [](AsyncWebServerRequest *request) {
         Serial.println("Received GET /reboot - returning /reboot.html");
         request->send(SPIFFS, "/reboot.html", String(), false, processor);
+        delay(1);
+        ESP.restart();
     });
 
     // Setup HTTP server callback for AP mode
@@ -348,16 +338,33 @@ void setupWebServer() {
         Serial.println("Received GET / - returning /ap_index.html");
         request->send(SPIFFS, "/ap_index.html", String(), false, processor);
     }).setFilter(ON_AP_FILTER);
-    server.on("/api/ap", HTTP_POST, [](AsyncWebServerRequest *request) {
-        Serial.println("Received POST / - returning /ap_reboot.html");
-        ssid = "MA48";
-        password = "sooK2102";
-        hostname = "myesp";
-        saveWlanConfig();
-        request->redirect("/reboot.html");
-        // WiFi.softAPdisconnect();
-        // setupWifi();
-    }).setFilter(ON_AP_FILTER);
+
+    server.on("/api/ap", HTTP_POST,
+        [](AsyncWebServerRequest * request){
+            Serial.println("Received POST /api/ap");
+            Serial.print("Args: ");
+            Serial.println(request->args());
+            size_t i;
+            for (i=0; i<request->args(); ++i) {
+                if (request->argName(i) == "ssid") {
+                    ssid = request->arg(i);
+                    Serial.println("ssid ok");
+                } else if (request->argName(i) == "password") {
+                    password = request->arg(i);
+                    Serial.println("password ok");
+                } else if (request->argName(i) == "hostname") {
+                    hostname = request->arg(i);
+                    Serial.println("hostname ok");
+                } else {
+                    Serial.print("Unknown parameter ");
+                    Serial.println(request->argName(i));
+                }
+            }
+            saveWlanConfig();
+            request->redirect("/");
+            delay(1);
+            ESP.restart();
+        });
 
     // Setup HTTP server callback for STA mode
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -380,8 +387,8 @@ void setupWebServer() {
         Serial.println("Received POST /api/wlan-reset - returning /ap_reboot.html");
         resetWlanConfig();
         request->redirect("/reboot.html");
-        // WiFi.disconnect();
-        // setupWifi();
+        delay(1);
+        ESP.restart();
     }).setFilter(ON_STA_FILTER);
 
     // Start HTTP server
