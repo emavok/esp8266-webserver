@@ -14,7 +14,7 @@
 // default hostname (without .local)
 #define DEFAULT_HOSTNAME "esp8266"
 // maximum timeout in seconds to wait for successful wlan connection
-#define DEFAULT_TIMEOUT 30
+#define DEFAULT_TIMEOUT 10
 
 // default access point ip when spawning a network
 #define DEFAULT_AP_IP "8.8.8.8"
@@ -48,7 +48,7 @@ enum EActiveMode {
 // ------------------------------------------------------------------------------------------------
 class ZeroConfWifi {
 
-    protected:
+    public:
 
         //! Wifi network name to connect to
         String m_sSSID = DEFAULT_SSID;
@@ -75,6 +75,9 @@ class ZeroConfWifi {
         //! web server
         AsyncWebServer m_aWebServer;
 
+        //! timestamp when it should be rebootet
+        uint_least64_t m_tRebootAt = 0;
+
         // ----------------------------------------------------------------------------------------
         /** Processor function for configuration website
          * @param parameter Template parameter name
@@ -83,7 +86,19 @@ class ZeroConfWifi {
         // ----------------------------------------------------------------------------------------
         String processor(const String& parameter);
 
-        void handleAPRequestGetRoot(AsyncWebServerRequest *request);
+        // ----------------------------------------------------------------------------------------
+        /** Handles a POST request to save updated config
+         * @return True on success, false otherwise
+         */
+        // ----------------------------------------------------------------------------------------
+        void handleUpdateConfigRequest(AsyncWebServerRequest *request);
+
+        // ----------------------------------------------------------------------------------------
+        /** Schedules a reboot in x milliseconds
+         * @param timeout Delay in milliseconds before reboot
+         */
+        // ----------------------------------------------------------------------------------------
+        void scheduleReboot( uint64_t timeout );
 
     // --------------------------------------------------------------------------------------------
     /** Constructor */

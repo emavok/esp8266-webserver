@@ -276,6 +276,9 @@ bool ZeroConfWifi::startMDNS() {
 // ------------------------------------------------------------------------------------------------
 void ZeroConfWifi::update() {
     MDNS.update();
+    if (m_tRebootAt != 0 && (sys_now() > m_tRebootAt)) {
+        ESP.restart();
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -319,11 +322,35 @@ String ZeroConfWifi::processor(const String &var)
     return value;
 }
 
-void ZeroConfWifi::handleAPRequestGetRoot(AsyncWebServerRequest *request) {
-    Serial.println("Received GET / - returning /ap_index.html");
-    request->send(SPIFFS, "/wifi/ap_index.html", String(), false,
-        std::bind(&ZeroConfWifi::processor, this, std::placeholders::_1)
-    );
+// ------------------------------------------------------------------------------------------------
+/** Handles a POST request to save updated config
+ * @return True on success, false otherwise
+ */
+// ------------------------------------------------------------------------------------------------
+void ZeroConfWifi::handleUpdateConfigRequest(AsyncWebServerRequest *request) {
+    Serial.println("Received POST /update");
+    size_t i;
+    for (i=0; i<request->args(); ++i) {
+        if (request->argName(i) == "ssid") {
+            m_sSSID = request->arg(i);
+            Serial.println("ssid ok");
+        } else if (request->argName(i) == "password") {
+            m_sPassword = request->arg(i);
+            Serial.println("password ok");
+        } else if (request->argName(i) == "hostname") {
+            m_sHostname = request->arg(i);
+            Serial.println("hostname ok");
+        } else {
+            Serial.print("Unknown parameter ");
+            Serial.println(request->argName(i));
+        }
+    }
+    // store updated config
+    saveConfig();
+
+    request->redirect("/wifi/reboot.html");
+    // schedule a reboot in 5 sec
+    scheduleReboot(5000);
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -334,65 +361,38 @@ void ZeroConfWifi::handleAPRequestGetRoot(AsyncWebServerRequest *request) {
 bool ZeroConfWifi::startWebServer() {
     Serial.print("Starting up HTTP server...");
 
-    // Setup HTTP server callback for AP mode
-    m_aWebServer.on("/", HTTP_GET,
-        std::bind(&ZeroConfWifi::handleAPRequestGetRoot, this, std::placeholders::_1)
-    ).setFilter(ON_AP_FILTER);
+    m_aWebServer
+        .on("/", HTTP_GET,  [](AsyncWebServerRequest *request) {
+            request->redirect("/wifi/");
+        })
+        .setFilter(ON_AP_FILTER);
 
-    m_aWebServer.on("/api/ap", HTTP_POST,
-        [](AsyncWebServerRequest * request){
-            Serial.println("Received POST /api/ap");
-            Serial.print("Args: ");
-            Serial.println(request->args());
-            size_t i;
-            for (i=0; i<request->args(); ++i) {
-                if (request->argName(i) == "ssid") {
-                    ssid = request->arg(i);
-                    Serial.println("ssid ok");
-                } else if (request->argName(i) == "password") {
-                    password = request->arg(i);
-                    Serial.println("password ok");
-                } else if (request->argName(i) == "hostname") {
-                    hostname = request->arg(i);
-                    Serial.println("hostname ok");
-                } else {
-                    Serial.print("Unknown parameter ");
-                    Serial.println(request->argName(i));
-                }
-            }
-            saveWlanConfig();
-            request->redirect("/");
-            delay(1);
-            ESP.restart();
-        });
+    m_aWebServer
+        .serveStatic("/wifi/", SPIFFS, "/wifi/")
+        .setDefaultFile("index.html")
+        .setTemplateProcessor(
+            std::bind(&ZeroConfWifi::processor, this, std::placeholders::_1)
+        );
 
-    // Setup HTTP server callback for STA mode
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        Serial.println("Received GET / - returning /index.html");
-        request->send(SPIFFS, "/index.html", String(), false, processor);
-    }).setFilter(ON_STA_FILTER);
-    server.on("/api/led/red", HTTP_POST, [](AsyncWebServerRequest *request) {
-        Serial.println("Received POST /api/led/red - returning /index.html");
-        const bool isOn = digitalRead(RED_PIN);
-        digitalWrite(RED_PIN, isOn ? LOW : HIGH );
-        request->send(SPIFFS, "/index.html", String(), false, processor);
-    }).setFilter(ON_STA_FILTER);
-    server.on("/api/led/green", HTTP_POST, [](AsyncWebServerRequest *request) {
-        Serial.println("Received POST /api/led/green - returning /index.html");
-        const bool isOn = digitalRead(GREEN_PIN);
-        digitalWrite(GREEN_PIN, isOn ? LOW : HIGH );
-        request->send(SPIFFS, "/index.html", String(), false, processor);
-    }).setFilter(ON_STA_FILTER);
-    server.on("/api/wlan-reset", HTTP_POST, [](AsyncWebServerRequest *request) {
-        Serial.println("Received POST /api/wlan-reset - returning /ap_reboot.html");
-        resetWlanConfig();
-        request->redirect("/reboot.html");
-        delay(1);
-        ESP.restart();
-    }).setFilter(ON_STA_FILTER);
+    m_aWebServer
+        .on("/wifi/save-config", HTTP_POST,
+            std::bind(&ZeroConfWifi::handleUpdateConfigRequest, this, std::placeholders::_1)
+        );
 
     // Start HTTP server
-    server.begin();
+    m_aWebServer.begin();
     Serial.println("ok.");
+
+    return true;
 }
 
+// ------------------------------------------------------------------------------------------------
+/** Schedules a reboot in x milliseconds
+ * @param timeout Delay in milliseconds before reboot
+ */
+// ------------------------------------------------------------------------------------------------
+void ZeroConfWifi::scheduleReboot( uint64_t timeout ) {
+    m_tRebootAt = sys_now() + timeout;
+}
+
+// eof
