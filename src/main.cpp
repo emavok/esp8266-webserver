@@ -21,6 +21,7 @@
 #define DEFAULT_SSID "MyNetworkSSID"
 #define DEFAULT_PASSWORD "myNetworkPassword"
 #define DEFAULT_HOSTNAME "myesp"
+#define DEFAULT_AP_SSID "esp8266-net"
 
 // WLAN settings it should try to connect to
 String ssid = DEFAULT_SSID;
@@ -29,7 +30,7 @@ String password = DEFAULT_PASSWORD;
 String hostname = DEFAULT_HOSTNAME;
 
 // AP settings
-const char *ap_ssid = "esp8266-network";
+const char *ap_ssid = DEFAULT_AP_SSID;
 IPAddress ap_ip(192,168,111,1);
 IPAddress ap_gateway(192,168,111,0);
 IPAddress ap_subnet(255,255,255,0);
