@@ -101,6 +101,9 @@ bool ZeroConfWifi::loadConfig() {
     // close file handle
     file.close();
 
+    Serial.println("ok.");
+    Serial.print("Parsing content...");
+
     // try parsing
     DynamicJsonDocument doc(1024);
     DeserializationError err = deserializeJson(doc, jsonStr);
@@ -119,6 +122,7 @@ bool ZeroConfWifi::loadConfig() {
     m_ipSubnet.fromString(doc[JSON_KEY_AP_NETMASK] | DEFAULT_SUBNET);
     m_sNetName = doc[JSON_KEY_AP_NETWORK] | DEFAULT_NETNAME;
 
+    Serial.println("ok.");
     return true;
 }
 
@@ -165,8 +169,8 @@ bool ZeroConfWifi::start() {
 
     // fallback: start own network
     if (startAP()) {
-        // if successful start mDNS service
-        return startMDNS();
+        // if successful start DNS service
+        return startDNS();
     }
 
     // all things failed
@@ -242,13 +246,9 @@ bool ZeroConfWifi::startAP() {
 // ------------------------------------------------------------------------------------------------
 bool ZeroConfWifi::startMDNS() {
     Serial.print("Starting mDNS responder...");
-    // if (m_eActiveMode != E_MODE_STA) {
-    //     Serial.println("error. Wifi not in STA mode.");
-    //     return false;
-    // }
 
     // start mDNS service
-    if (!MDNS.begin(m_sHostname, m_ipAP))
+    if (!MDNS.begin(m_sHostname))
     {
         Serial.println("failed.");
         return false;
@@ -270,13 +270,43 @@ bool ZeroConfWifi::startMDNS() {
 }
 
 // ------------------------------------------------------------------------------------------------
+/** Starts the DNS server
+ * @return True on success, false otherwise
+ */
+// ------------------------------------------------------------------------------------------------
+bool ZeroConfWifi::startDNS() {
+    Serial.print("Starting DNS server...");
+
+    // start mDNS service
+    if (!m_aDnsServer.start( DEFAULT_DNS_PORT, "*", m_ipAP ))
+    {
+        Serial.println("failed.");
+        return false;
+    }
+    Serial.println("ok.");
+    return true;
+}
+
+// ------------------------------------------------------------------------------------------------
 /** Performs update tasks - call in loop function
  * @return True on success, false otherwise
  */
 // ------------------------------------------------------------------------------------------------
 void ZeroConfWifi::update() {
-    MDNS.update();
+    if (m_eActiveMode == E_MODE_AP) {
+        m_aDnsServer.processNextRequest();
+    } else if (m_eActiveMode == E_MODE_STA) {
+        MDNS.update();
+    }
     if (m_tRebootAt != 0 && (sys_now() > m_tRebootAt)) {
+        Serial.println("Stopping wifi...");
+        if (m_eActiveMode == E_MODE_AP) {
+            WiFi.softAPdisconnect(true);
+        } else if (m_eActiveMode == E_MODE_STA) {
+            WiFi.disconnect(true);
+        }
+        delay(500);
+        Serial.println("Restarting ESP8266...");
         ESP.restart();
     }
 }
@@ -329,6 +359,7 @@ String ZeroConfWifi::processor(const String &var)
 // ------------------------------------------------------------------------------------------------
 void ZeroConfWifi::handleUpdateConfigRequest(AsyncWebServerRequest *request) {
     Serial.println("Received POST /update");
+    Serial.println("Parsing parameters...");
     size_t i;
     for (i=0; i<request->args(); ++i) {
         if (request->argName(i) == "ssid") {
@@ -345,12 +376,39 @@ void ZeroConfWifi::handleUpdateConfigRequest(AsyncWebServerRequest *request) {
             Serial.println(request->argName(i));
         }
     }
+
     // store updated config
     saveConfig();
 
+    Serial.println("Redirecting to reboot.html...");
     request->redirect("/wifi/reboot.html");
+
+    Serial.println("Schedule ESP restart in 5 sec...");
     // schedule a reboot in 5 sec
     scheduleReboot(5000);
+}
+
+// ------------------------------------------------------------------------------------------------
+/** Handles a not found request in AP mode
+ * @return True on success, false otherwise
+ */
+// ------------------------------------------------------------------------------------------------
+void ZeroConfWifi::handleAPNotFoundRequest(AsyncWebServerRequest *request) {
+    // if request does not correct target host
+    if (request->host() != m_sHostname) {
+        // redirect to correct host
+        String sURL = "http://" + m_sHostname + ".local";
+        Serial.print("Unsupported host name. Redirecting from ");
+        Serial.print(request->host());
+        Serial.print(" to ");
+        Serial.println(sURL);
+        request->redirect(sURL);
+    } else {
+        // just print an info
+        Serial.print("404 ressource not found: ");
+        Serial.println(request->url());
+        request->send(404);
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -363,9 +421,14 @@ bool ZeroConfWifi::startWebServer() {
 
     m_aWebServer
         .on("/", HTTP_GET,  [](AsyncWebServerRequest *request) {
+            Serial.println("GET / --> redirecting to GET /wifi/");
             request->redirect("/wifi/");
         })
         .setFilter(ON_AP_FILTER);
+
+    m_aWebServer.onNotFound(
+        std::bind(&ZeroConfWifi::handleAPNotFoundRequest, this, std::placeholders::_1)
+    );
 
     m_aWebServer
         .serveStatic("/wifi/", SPIFFS, "/wifi/")

@@ -6,6 +6,7 @@
 #include <WiFiClient.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <DNSServer.h>
 
 // default ssid of network to connect to
 #define DEFAULT_SSID "my-wlan-ssid"
@@ -24,6 +25,8 @@
 #define DEFAULT_SUBNET "255.255.255.0"
 // default network name when spawning a network
 #define DEFAULT_NETNAME "esp8266-net"
+// default dns port
+#define DEFAULT_DNS_PORT 53
 
 //! default web server port
 #define DEFAULT_HTTP_PORT 80
@@ -75,6 +78,9 @@ class ZeroConfWifi {
         //! web server
         AsyncWebServer m_aWebServer;
 
+        //! dns server
+        DNSServer m_aDnsServer;
+
         //! timestamp when it should be rebootet
         uint_least64_t m_tRebootAt = 0;
 
@@ -92,6 +98,13 @@ class ZeroConfWifi {
          */
         // ----------------------------------------------------------------------------------------
         void handleUpdateConfigRequest(AsyncWebServerRequest *request);
+
+        // ----------------------------------------------------------------------------------------
+        /** Handles a not found request in AP mode
+         * @return True on success, false otherwise
+         */
+        // ----------------------------------------------------------------------------------------
+        void handleAPNotFoundRequest(AsyncWebServerRequest *request);
 
         // ----------------------------------------------------------------------------------------
         /** Schedules a reboot in x milliseconds
@@ -160,6 +173,13 @@ class ZeroConfWifi {
          */
         // ----------------------------------------------------------------------------------------
         bool    startMDNS();
+
+        // ----------------------------------------------------------------------------------------
+        /** Starts the DNS server
+         * @return True on success, false otherwise
+         */
+        // ----------------------------------------------------------------------------------------
+        bool    startDNS();
 
         // ----------------------------------------------------------------------------------------
         /** Starts the web server
