@@ -2,11 +2,11 @@
     <head>
         <title>ESP8266</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="bootstrap.min.css">
+        <!-- <link rel="stylesheet" href="bootstrap.min.css"> -->
     </head>
     <body class="bg-dark">
         <div class="container bg-secondary text-white mt-2 mb-2 p-4">
-            <h1 class="text-center">Willkommen auf Deinem ESP8266 Netwerk</h1>
+            <h1 class="text-center">Welcome to your ESP8266</h1>
 
             <h3>Access Point information</h3>
             <ul>
@@ -14,7 +14,7 @@
             </ul>
 
             <h3>Network connection</h3>
-            <form action="/api/ap" method="POST" name="form">
+            <form action="/wifi/save-config" method="POST" name="form">
                 <div class="form-group">
                   <label for="ssid">Your network SSID</label>
                   <input type="text" class="form-control" id="ssid" name="ssid" aria-describedby="ssidHelp" placeholder="Enter your network SSID" value="%SSID%">
@@ -30,7 +30,7 @@
                   <input type="text" class="form-control" id="hostname" name="hostname" aria-describedby="hostnameHelp" placeholder="hostname" value="%HOSTNAME%">
                   <small id="hostnameHelp" class="form-text text-muted">Target hostname for mDNS access.</small>
                 </div>
-                <button class="btn btn-primary" type="submit">Submit</button>
+                <button class="btn btn-primary" type="submit">Update WLAN config</button>
               </form>
         </div>
     </body>

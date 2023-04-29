@@ -2,7 +2,7 @@
     <head>
         <title>ESP8266</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="bootstrap.min.css">
+        <!-- <link rel="stylesheet" href="bootstrap.min.css"> -->
     </head>
     <body class="bg-dark">
         <div class="container bg-secondary text-white mt-2 mb-2 p-4">
@@ -18,9 +18,9 @@
 
             <h3>LED Einstellungen</h3>
             <form>
-                <button class="btn btn-danger" type="submit" formmethod="POST" formaction="/api/led/red">Toggle RED</button>
-                <button class="btn btn-success" type="submit" formmethod="POST" formaction="/api/led/green">Toggle GREEN</button>
-                <button class="btn btn-success" type="submit" formmethod="POST" formaction="/api/wlan-reset">Reset WLAN</button>
+                <button class="btn btn-danger" type="submit" formmethod="POST" formaction="/toggle-red">Toggle RED</button>
+                <button class="btn btn-success" type="submit" formmethod="POST" formaction="/toggle-green">Toggle GREEN</button>
+                <button class="btn btn-success" type="submit" formmethod="POST" formaction="/reset-config">Reset WLAN config</button>
             </form>
         </div>
     </body>
