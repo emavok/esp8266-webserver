@@ -4,7 +4,7 @@
 
 #include "wifi-wrapper.h"
 
-#include <FS.h>
+#include <LittleFS.h>
 
 // Installing this see https://platformio.org/lib/show/64/ArduinoJson/installation
 #include <ArduinoJson.h>
@@ -34,7 +34,7 @@ Wifi::~Wifi () {
 }
 
 // ------------------------------------------------------------------------------------------------
-/** Saves current configuration on SPIFFS
+/** Saves current configuration on LittleFS
  * @return True on success, false otherwise
  */
 // ------------------------------------------------------------------------------------------------
@@ -43,7 +43,7 @@ bool Wifi::saveConfig() {
     Serial.print(m_sConfigFileName);
     Serial.print("...");
 
-    File file = SPIFFS.open(m_sConfigFileName, "w");
+    File file = LittleFS.open(m_sConfigFileName, "w");
     if (!file) {
         Serial.println("error. Could not open file for writing.");
         return false;
@@ -70,7 +70,7 @@ bool Wifi::saveConfig() {
 }
 
 // ------------------------------------------------------------------------------------------------
-/** Loads configuration on SPIFFS
+/** Loads configuration on LittleFS
  * @return True on success, false otherwise
  */
 // ------------------------------------------------------------------------------------------------
@@ -80,7 +80,7 @@ bool Wifi::loadConfig() {
     Serial.print("...");
 
     // try to open file for reading
-    File file = SPIFFS.open(m_sConfigFileName, "r");
+    File file = LittleFS.open(m_sConfigFileName, "r");
     if (!file) {
         Serial.println("error. Could not open file for reading.");
         return 1;
@@ -114,7 +114,7 @@ bool Wifi::loadConfig() {
 }
 
 // ------------------------------------------------------------------------------------------------
-/** Resets configuration on SPIFFS to default values
+/** Resets configuration on LittleFS to default values
  * @return True on success, false otherwise
  */
 // ------------------------------------------------------------------------------------------------
@@ -131,7 +131,7 @@ bool Wifi::resetConfig() {
     m_sNetName = DEFAULT_NETNAME;
 
     // remove config file
-    if (SPIFFS.remove(m_sConfigFileName)) {
+    if (LittleFS.remove(m_sConfigFileName)) {
         Serial.println("ok.");
         return true;
     }

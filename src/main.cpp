@@ -4,7 +4,7 @@
 
   * connect to existing wlan
   * mDNS responder setup for http://esp.local
-  * serving files from SPIFFS file system
+  * serving files from LittleFS file system
 
 */
 // ------------------------------------------------------------------------------------------------
@@ -16,7 +16,7 @@
 
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-#include <FS.h>
+#include <LittleFS.h>
 
 #define DEFAULT_SSID "MyNetworkSSID"
 #define DEFAULT_PASSWORD "myNetworkPassword"
@@ -35,7 +35,7 @@ IPAddress ap_ip(192,168,111,1);
 IPAddress ap_gateway(192,168,111,0);
 IPAddress ap_subnet(255,255,255,0);
 
-// wlan config file name in SPIFFS
+// wlan config file name in LittleFS
 const char *wlanConfigFileName = "wlan.cfg";
 
 // pins for controlling a red and a green LED
@@ -61,7 +61,7 @@ int saveWlanConfig() {
     Serial.print(wlanConfigFileName);
     Serial.print("...");
 
-    File file = SPIFFS.open(wlanConfigFileName, "w");
+    File file = LittleFS.open(wlanConfigFileName, "w");
     if (!file) {
         Serial.println("error. Could not open file for writing.");
         return 1;
@@ -90,7 +90,7 @@ int resetWlanConfig() {
     Serial.print("* Deleting wlan config file ");
     Serial.print(wlanConfigFileName);
     Serial.print("...");
-    if (SPIFFS.remove(wlanConfigFileName)) {
+    if (LittleFS.remove(wlanConfigFileName)) {
         Serial.println("ok.");
         return 0;
     }
@@ -110,7 +110,7 @@ int readWlanConfig() {
     bool pwOk = false;
     bool hnOk = false;
 
-    File file = SPIFFS.open(wlanConfigFileName, "r");
+    File file = LittleFS.open(wlanConfigFileName, "r");
     if (!file) {
         Serial.println("error. Could not open file for reading.");
         return 1;
@@ -329,15 +329,25 @@ void setupWebServer() {
     // Setup HTTP for all modes
     server.on("/reboot.html", HTTP_GET, [](AsyncWebServerRequest *request) {
         Serial.println("Received GET /reboot - returning /reboot.html");
-        request->send(SPIFFS, "/reboot.html", String(), false, processor);
+        request->send(LittleFS, "/reboot.html", String(), false, processor);
         delay(1);
         ESP.restart();
+    });
+    // Setup HTTP for all modes
+    server.on("/bootstrap.min.css", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println("Received GET /bootstrap.min.css - returning /bootstrap.min.css");
+        request->send(LittleFS, "/bootstrap.min.css", String(), false, nullptr);
     });
 
     // Setup HTTP server callback for AP mode
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         Serial.println("Received GET / - returning /ap_index.html");
-        request->send(SPIFFS, "/ap_index.html", String(), false, processor);
+        request->send(LittleFS, "/ap_index.html", String(), false, processor);
+    }).setFilter(ON_AP_FILTER);
+    // Setup HTTP server callback for AP mode
+    server.on("/ap_index.html", HTTP_GET, [](AsyncWebServerRequest *request) {
+        Serial.println("Received GET /ap_index.html - returning /ap_index.html");
+        request->send(LittleFS, "/ap_index.html", String(), false, processor);
     }).setFilter(ON_AP_FILTER);
 
     server.on("/api/ap", HTTP_POST,
@@ -370,19 +380,19 @@ void setupWebServer() {
     // Setup HTTP server callback for STA mode
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         Serial.println("Received GET / - returning /index.html");
-        request->send(SPIFFS, "/index.html", String(), false, processor);
+        request->send(LittleFS, "/index.html", String(), false, processor);
     }).setFilter(ON_STA_FILTER);
     server.on("/api/led/red", HTTP_POST, [](AsyncWebServerRequest *request) {
         Serial.println("Received POST /api/led/red - returning /index.html");
         const bool isOn = digitalRead(RED_PIN);
         digitalWrite(RED_PIN, isOn ? LOW : HIGH );
-        request->send(SPIFFS, "/index.html", String(), false, processor);
+        request->send(LittleFS, "/index.html", String(), false, processor);
     }).setFilter(ON_STA_FILTER);
     server.on("/api/led/green", HTTP_POST, [](AsyncWebServerRequest *request) {
         Serial.println("Received POST /api/led/green - returning /index.html");
         const bool isOn = digitalRead(GREEN_PIN);
         digitalWrite(GREEN_PIN, isOn ? LOW : HIGH );
-        request->send(SPIFFS, "/index.html", String(), false, processor);
+        request->send(LittleFS, "/index.html", String(), false, processor);
     }).setFilter(ON_STA_FILTER);
     server.on("/api/wlan-reset", HTTP_POST, [](AsyncWebServerRequest *request) {
         Serial.println("Received POST /api/wlan-reset - returning /ap_reboot.html");
@@ -391,6 +401,10 @@ void setupWebServer() {
         delay(1);
         ESP.restart();
     }).setFilter(ON_STA_FILTER);
+    server.onNotFound([](AsyncWebServerRequest *request) {
+        Serial.print("Error 404: url not found: ");
+        Serial.println(request->url());
+    });
 
     // Start HTTP server
     server.begin();
@@ -411,11 +425,11 @@ void setup(void)
     digitalWrite(RED_PIN, HIGH);
     digitalWrite(GREEN_PIN, LOW);
 
-    // get access to SPIFFS file system
-    Serial.println("Initializing SPIFFS file system...");
-    if (!SPIFFS.begin())
+    // get access to LittleFS file system
+    Serial.println("Initializing LittleFS file system...");
+    if (!LittleFS.begin())
     {
-        Serial.println("An Error has occurred while mounting SPIFFS");
+        Serial.println("An Error has occurred while mounting LittleFS");
         return;
     }
 
