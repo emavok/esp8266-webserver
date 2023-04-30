@@ -43,15 +43,34 @@ String templateProcessor(const String &var) {
     return value;
 }
 
+bool filterIsHtmlAndModeSTA(AsyncWebServerRequest *request) {
+    const bool canHandle = ON_STA_FILTER(request)
+        // && request->url().length() > 5
+        // && request->url().substring(request->url().length() - 5) == ".html"
+    ;
+    Serial.print("filterIsHtmlAndModeSTA: ");
+    Serial.print(request->url());
+    Serial.print(" -> ");
+    Serial.println(canHandle ? "OK" : "pass");
+    return canHandle;
+}
+
 // ------------------------------------------------------------------------------------------------
 // Additional web server setup
 // ------------------------------------------------------------------------------------------------
 void setupWebServer() {
+    // zcWifi.m_aWebServer
+        // .rewrite("/", "/index.html");
+
     zcWifi.m_aWebServer
         .serveStatic("/", LittleFS, "/www/")
         .setDefaultFile("index.html")
         .setTemplateProcessor(templateProcessor)
-        .setFilter(ON_STA_FILTER);
+        .setFilter(filterIsHtmlAndModeSTA);
+
+    // zcWifi.m_aWebServer
+    //     .serveStatic("/", LittleFS, "/www/")
+    //     .setFilter(ON_STA_FILTER);
 
     zcWifi.m_aWebServer.on("/toggle-green", HTTP_POST, [](AsyncWebServerRequest *request) {
         int greenValue = digitalRead(GREEN_PIN);
@@ -68,7 +87,7 @@ void setupWebServer() {
     zcWifi.m_aWebServer.on("/reset-config", HTTP_POST, [](AsyncWebServerRequest *request) {
         zcWifi.scheduleReboot(5000);
         zcWifi.resetConfig();
-        request->redirect("/wifi/reset.html");
+        request->redirect("/www-ap/reset.html");
     });
 }
 

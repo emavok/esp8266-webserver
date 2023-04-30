@@ -358,7 +358,7 @@ String ZeroConfWifi::processor(const String &var)
  */
 // ------------------------------------------------------------------------------------------------
 void ZeroConfWifi::handleUpdateConfigRequest(AsyncWebServerRequest *request) {
-    Serial.println("Received POST /update");
+    Serial.println("Received POST /www-ap/update");
     Serial.println("Parsing parameters...");
     size_t i;
     for (i=0; i<request->args(); ++i) {
@@ -380,8 +380,8 @@ void ZeroConfWifi::handleUpdateConfigRequest(AsyncWebServerRequest *request) {
     // store updated config
     saveConfig();
 
-    Serial.println("Redirecting to reboot.html...");
-    request->redirect("/wifi/reboot.html");
+    Serial.println("Redirecting to /www-ap/reboot.html...");
+    request->redirect("/www-ap/reboot.html");
 
     Serial.println("Schedule ESP restart in 5 sec...");
     // schedule a reboot in 5 sec
@@ -394,14 +394,23 @@ void ZeroConfWifi::handleUpdateConfigRequest(AsyncWebServerRequest *request) {
  */
 // ------------------------------------------------------------------------------------------------
 void ZeroConfWifi::handleAPNotFoundRequest(AsyncWebServerRequest *request) {
+    const String hostnameWithDotLocal = m_sHostname + ".local";
     // if request does not correct target host
-    if (request->host() != m_sHostname) {
+    if (
+        request->host() != m_sHostname
+        // &&
+        // request->host() != hostnameWithDotLocal
+    ) {
         // redirect to correct host
-        String sURL = "http://" + m_sHostname + ".local";
-        Serial.print("Unsupported host name. Redirecting from ");
+        String sURL = "http://" + hostnameWithDotLocal;
+        // sURL += '/';
+        Serial.print("Unsupported host name. Redirecting from '");
         Serial.print(request->host());
-        Serial.print(" to ");
-        Serial.println(sURL);
+        Serial.print("' to '");
+        Serial.print(hostnameWithDotLocal);
+        Serial.print("' (-> ");
+        Serial.print(sURL);
+        Serial.println(")");
         request->redirect(sURL);
     } else {
         // just print an info
@@ -409,6 +418,27 @@ void ZeroConfWifi::handleAPNotFoundRequest(AsyncWebServerRequest *request) {
         Serial.println(request->url());
         request->send(404);
     }
+}
+
+bool filterIsHtmlAndModeAP(AsyncWebServerRequest *request) {
+    const bool canHandle = ON_AP_FILTER(request)
+        && request->url().length() > 5
+        && request->url().substring(request->url().length() - 5) == ".html"
+    ;
+    Serial.print("filterIsHtmlAndModeAP: ");
+    Serial.print(request->url());
+    Serial.print(" -> ");
+    Serial.println(canHandle ? "OK" : "pass");
+    return canHandle;
+}
+
+bool filterIsModeAP(AsyncWebServerRequest *request) {
+    const bool canHandle = ON_AP_FILTER(request);
+    Serial.print("filterIsModeAP: ");
+    Serial.print(request->url());
+    Serial.print(" -> ");
+    Serial.println(canHandle ? "OK" : "pass");
+    return canHandle;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -421,8 +451,15 @@ bool ZeroConfWifi::startWebServer() {
 
     m_aWebServer
         .on("/", HTTP_GET,  [](AsyncWebServerRequest *request) {
-            Serial.println("GET / --> redirecting to GET /wifi/");
-            request->redirect("/wifi/");
+            Serial.println("GET / --> redirecting to GET /www-ap/");
+            request->redirect("/www-ap/");
+        })
+        .setFilter(ON_AP_FILTER);
+
+    m_aWebServer
+        .on("/www-ap/", HTTP_GET,  [](AsyncWebServerRequest *request) {
+            Serial.println("GET /www-ap/ --> redirecting to GET /www-ap/index.html");
+            request->redirect("/www-ap/index.html");
         })
         .setFilter(ON_AP_FILTER);
 
@@ -431,14 +468,18 @@ bool ZeroConfWifi::startWebServer() {
     );
 
     m_aWebServer
-        .serveStatic("/wifi/", LittleFS, "/wifi/")
-        .setDefaultFile("index.html")
+        .serveStatic("/www-ap/", LittleFS, "/www-ap/")
         .setTemplateProcessor(
             std::bind(&ZeroConfWifi::processor, this, std::placeholders::_1)
-        );
+        )
+        .setFilter(filterIsHtmlAndModeAP);
 
     m_aWebServer
-        .on("/wifi/save-config", HTTP_POST,
+        .serveStatic("/www-ap/", LittleFS, "/www-ap/")
+        .setFilter(filterIsModeAP);
+
+    m_aWebServer
+        .on("/www-ap/save-config", HTTP_POST,
             std::bind(&ZeroConfWifi::handleUpdateConfigRequest, this, std::placeholders::_1)
         );
 
