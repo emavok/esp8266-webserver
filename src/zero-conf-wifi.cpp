@@ -27,19 +27,19 @@
 // ------------------------------------------------------------------------------------------------
 /** Constructor */
 // ------------------------------------------------------------------------------------------------
-ZeroConfWifi::ZeroConfWifi()
-: m_aWebServer( DEFAULT_HTTP_PORT )
-{
+ZeroConfWifi::ZeroConfWifi() : m_aWebServer( DEFAULT_HTTP_PORT ) {
     // initialize ip addresses
     m_ipAP.fromString(DEFAULT_AP_IP);
     m_ipGateway.fromString(DEFAULT_GW_IP);
     m_ipSubnet.fromString(DEFAULT_SUBNET);
+    m_pWebSocket = new AsyncWebSocket("/ws");
 }
 
 // ------------------------------------------------------------------------------------------------
 /** Destructor */
 // ------------------------------------------------------------------------------------------------
 ZeroConfWifi::~ZeroConfWifi() {
+    delete m_pWebSocket;
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -395,11 +395,10 @@ void ZeroConfWifi::handleUpdateConfigRequest(AsyncWebServerRequest *request) {
 // ------------------------------------------------------------------------------------------------
 void ZeroConfWifi::handleAPNotFoundRequest(AsyncWebServerRequest *request) {
     const String hostnameWithDotLocal = m_sHostname + ".local";
-    // if request does not correct target host
-    if (
+    // if in AP mode and request does not correct target host
+    if (WiFi.localIP() != request->client()->localIP()
+        &&
         request->host() != m_sHostname
-        // &&
-        // request->host() != hostnameWithDotLocal
     ) {
         // redirect to correct host
         String sURL = "http://" + hostnameWithDotLocal;
@@ -482,6 +481,9 @@ bool ZeroConfWifi::startWebServer() {
         .on("/www-ap/save-config", HTTP_POST,
             std::bind(&ZeroConfWifi::handleUpdateConfigRequest, this, std::placeholders::_1)
         );
+
+    // attach web wocket
+    m_aWebServer.addHandler(m_pWebSocket);
 
     // Start HTTP server
     m_aWebServer.begin();

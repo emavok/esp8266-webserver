@@ -43,34 +43,94 @@ String templateProcessor(const String &var) {
     return value;
 }
 
-bool filterIsHtmlAndModeSTA(AsyncWebServerRequest *request) {
-    const bool canHandle = ON_STA_FILTER(request)
-        // && request->url().length() > 5
-        // && request->url().substring(request->url().length() - 5) == ".html"
-    ;
-    Serial.print("filterIsHtmlAndModeSTA: ");
-    Serial.print(request->url());
-    Serial.print(" -> ");
-    Serial.println(canHandle ? "OK" : "pass");
-    return canHandle;
+void onWsEventData(AsyncWebSocket * server, AsyncWebSocketClient * client, char *msg, size_t len){
+    Serial.printf("ws[%s][%u] Message received: %s\n", server->url(), client->id(), msg);
+    client->printf("Echo from server: %s", msg);
+}
+
+void onWsClientConnect(AsyncWebSocket * server, AsyncWebSocketClient * client){
+    Serial.printf("ws[%s][%u] Client connected\n", server->url(), client->id());
+    client->printf("Hello client, your id is %u", client->id());
+}
+void onWsClientDisconnect(AsyncWebSocket * server, AsyncWebSocketClient * client){
+    Serial.printf("ws[%s][%u] Client disconnected\n", server->url(), client->id());
+}
+void onWsEventPong(AsyncWebSocket * server, AsyncWebSocketClient * client, char *msg, size_t len){
+    Serial.printf("ws[%s][%u] pong[%u]: %s\n", server->url(), client->id(), len, (len) ? msg : "");
+}
+void onWsEventError(AsyncWebSocket * server, AsyncWebSocketClient * client, uint16_t errCode, char *errMsg, size_t errMsgLen) {
+    Serial.printf("ws[%s][%u] ERROR %u: %s\n", server->url(), client->id(), errCode, errMsg);
+}
+
+void onWsEventRawData(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsFrameInfo *info, char *data, size_t len){
+    if (info->final && info->index == 0 && info->len == len) {
+        // whole message received in a single frame
+        if (info->opcode != WS_TEXT) {
+            Serial.printf("ws[%s][%u] ERROR: only text data allowed as web socket data\n", server->url(), client->id());
+            return;
+        }
+        data[len] = 0;
+        onWsEventData(server, client, data, len);
+        return;
+    }
+
+    if(info->index == 0){
+        if(info->num == 0) {
+            Serial.printf("ws[%s][%u] %s-message start\n", server->url(), client->id(), (info->message_opcode == WS_TEXT)?"text":"binary");
+        }
+        Serial.printf("ws[%s][%u] frame[%u] start[%llu]\n", server->url(), client->id(), info->num, info->len);
+    }
+
+    if (info->opcode != WS_TEXT) {
+        Serial.printf("ws[%s][%u] ERROR: only text data allowed as web socket data\n", server->url(), client->id());
+        return;
+    }
+
+    Serial.printf("ws[%s][%u] frame[%u] %s[%llu - %llu]: ", server->url(), client->id(), info->num, (info->message_opcode == WS_TEXT)?"text":"binary", info->index, info->index + len);
+    // if(info->message_opcode == WS_TEXT){
+    data[len] = 0;
+    Serial.printf("%s\n", (char*)data);
+
+    if((info->index + len) == info->len){
+        Serial.printf("ws[%s][%u] frame[%u] end[%llu]\n", server->url(), client->id(), info->num, info->len);
+        if(info->final){
+            Serial.printf("ws[%s][%u] %s-message end\n", server->url(), client->id(), (info->message_opcode == WS_TEXT)?"text":"binary");
+        }
+    }
+}
+
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
+    Serial.println("WS message received");
+    //Handle WebSocket event
+    switch (type) {
+        case WS_EVT_CONNECT:
+            onWsClientConnect(server, client);
+            break;
+        case WS_EVT_DISCONNECT:
+            onWsClientDisconnect(server, client);
+            break;
+        case WS_EVT_PONG:
+            onWsEventPong(server, client, (char*)data, len);
+            break;
+        case WS_EVT_DATA:
+            onWsEventRawData(server, client, (AwsFrameInfo*) arg, (char*) data, len);
+            break;
+        case WS_EVT_ERROR:
+            onWsEventError(server, client, *(uint16_t*) arg, (char*)data, len);
+            break;
+        default:
+            Serial.printf("AsyncWebSocket: client %u triggered unknown event\n", client->id());
+    }
 }
 
 // ------------------------------------------------------------------------------------------------
 // Additional web server setup
 // ------------------------------------------------------------------------------------------------
 void setupWebServer() {
-    // zcWifi.m_aWebServer
-        // .rewrite("/", "/index.html");
-
     zcWifi.m_aWebServer
         .serveStatic("/", LittleFS, "/www/")
         .setDefaultFile("index.html")
-        .setTemplateProcessor(templateProcessor)
-        .setFilter(filterIsHtmlAndModeSTA);
-
-    // zcWifi.m_aWebServer
-    //     .serveStatic("/", LittleFS, "/www/")
-    //     .setFilter(ON_STA_FILTER);
+        .setFilter(ON_STA_FILTER);
 
     zcWifi.m_aWebServer.on("/toggle-green", HTTP_POST, [](AsyncWebServerRequest *request) {
         int greenValue = digitalRead(GREEN_PIN);
@@ -89,6 +149,9 @@ void setupWebServer() {
         zcWifi.resetConfig();
         request->redirect("/www-ap/reset.html");
     });
+
+    // add web socket handler
+    zcWifi.m_pWebSocket->onEvent(onWsEvent);
 }
 
 

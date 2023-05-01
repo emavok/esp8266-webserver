@@ -3,6 +3,7 @@
         <title>ESP8266</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <!-- <link rel="stylesheet" href="bootstrap.min.css"> -->
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
     </head>
     <body class="bg-dark">
         <div class="container bg-secondary text-white mt-2 mb-2 p-4">
@@ -22,6 +23,56 @@
                 <button class="btn btn-success" type="submit" formmethod="POST" formaction="/toggle-green">Toggle GREEN</button>
                 <button class="btn btn-success" type="submit" formmethod="POST" formaction="/reset-config">Reset WLAN config</button>
             </form>
+
+            <h3>WebSockets</h3>
+            <form>
+                <div class="form-group">
+                    <label for="wsmsg">WebSocket Message</label>
+                    <input type="text" id="wsmsg" class="form-control">
+                </div>
+                <button class="btn btn-success" type="button" onclick="sendWsMessage()">Send message</button>
+            </form>
+
+            <h4>Message history</h4>
+            <ul id="wsmsgs">
+            </ul>
         </div>
     </body>
+
+    <script type="text/javascript">
+        let hostname = location.hostname;
+        let url = "ws://" + hostname + "/ws";
+        console.log("WS: connecting to server: ", url);
+        var ws = new WebSocket(url);
+
+        function addMessageToHistory(msg, isInput) {
+            const ulElem = document.getElementById("wsmsgs");
+            const liElem = document.createElement("li");
+            liElem.innerHTML = (new Date()).toISOString() + " " + msg;
+            if (isInput) {
+                liElem.classList.add("text-secondary");
+            } else {
+                liElem.classList.add("text-primary");
+            }
+            ulElem.insertBefore(liElem, ulElem.firstChild);
+        }
+
+        ws.onopen = (event) => {
+            console.log("WS: connected");
+        }
+
+        ws.onmessage = (event) => {
+            console.log("WS: message received: ", event.data);
+            addMessageToHistory(event.data, true);
+        }
+
+        function sendWsMessage() {
+            const msgElem = document.getElementById("wsmsg");
+            const msg = msgElem.value;
+            console.log("WS: message sent: ", msg);
+            ws.send(msg);
+            addMessageToHistory(msg, false);
+            msgElem.value = "";
+        }
+    </script>
 </html>

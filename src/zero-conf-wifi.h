@@ -32,7 +32,7 @@
 #define DEFAULT_HTTP_PORT 80
 
 // default SPIFFS wlan config file name
-#define DEFAULT_WLAN_CONFIG_FILENAME "/config/wlan.cfg"
+#define DEFAULT_WLAN_CONFIG_FILENAME "/config/wlan_cfg.json"
 
 // ------------------------------------------------------------------------------------------------
 /** Active wifi modes */
@@ -77,6 +77,9 @@ class ZeroConfWifi {
 
         //! web server
         AsyncWebServer m_aWebServer;
+
+        //! web socket server plugin
+        AsyncWebSocket *m_pWebSocket;
 
         //! dns server
         DNSServer m_aDnsServer;
