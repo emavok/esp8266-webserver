@@ -10,8 +10,8 @@
 // ------------------------------------------------------------------------------------------------
 
 #include <Arduino.h>
+#include <ArduinoOTA.h>
 #include <WiFiClient.h>
-
 #include <LittleFS.h>
 
 #include "zero-conf-wifi.h"
@@ -43,6 +43,9 @@ String templateProcessor(const String &var) {
     return value;
 }
 
+// ------------------------------------------------------------------------------------------------
+// WebSocket functions
+// ------------------------------------------------------------------------------------------------
 void onWsEventData(AsyncWebSocket * server, AsyncWebSocketClient * client, char *msg, size_t len){
     Serial.printf("ws[%s][%u] Message received: %s\n", server->url(), client->id(), msg);
     client->printf("Echo from server: %s", msg);
@@ -97,6 +100,65 @@ void onWsEventRawData(AsyncWebSocket * server, AsyncWebSocketClient * client, Aw
             Serial.printf("ws[%s][%u] %s-message end\n", server->url(), client->id(), (info->message_opcode == WS_TEXT)?"text":"binary");
         }
     }
+}
+
+void otaStartCallback() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+    else // U_FS
+        type = "filesystem";
+
+    // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+    Serial.println("Start updating " + type);
+    if (zcWifi.m_pWebSocket->enabled()) {
+        Serial.println("- shutting down web sockets");
+        zcWifi.m_pWebSocket->enable(false);
+        zcWifi.m_pWebSocket->textAll("OTA Update started");
+        zcWifi.m_pWebSocket->closeAll();
+    }
+    Serial.println("- shutting down file system");
+    LittleFS.end();
+}
+void otaEndCallback() {
+    Serial.println("\nEnd");
+}
+void otaProgressCallback(unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+}
+void otaErrorCallback(ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+};
+
+// ------------------------------------------------------------------------------------------------
+// OTA Config
+// ------------------------------------------------------------------------------------------------
+void setupOTA() {
+    // Port defaults to 3232
+    // ArduinoOTA.setPort(3232);
+
+    // Hostname defaults to esp3232-[MAC]
+    // ArduinoOTA.setHostname("myesp32");
+
+    // No authentication by default
+    // ArduinoOTA.setPassword("admin");
+
+    // Password can be set with it's md5 value as well
+    // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+    // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+    ArduinoOTA.setHostname(zcWifi.m_sHostname.c_str());
+    ArduinoOTA.onStart(otaStartCallback);
+    ArduinoOTA.onEnd(otaEndCallback);
+    ArduinoOTA.onProgress(otaProgressCallback);
+    ArduinoOTA.onError(otaErrorCallback);
+
+    ArduinoOTA.begin();
 }
 
 void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
@@ -186,6 +248,9 @@ void setup(void)
     // setup web server
     zcWifi.startWebServer();
 
+    // start ota
+    setupOTA();
+
     // set LED to green to indicate success
     digitalWrite(RED_PIN, LOW);
     digitalWrite(GREEN_PIN, HIGH);
@@ -197,4 +262,5 @@ void setup(void)
 void loop(void)
 {
     zcWifi.update();
+    ArduinoOTA.handle();
 }
